@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bridging the Safety Gap: Hardening the STL in Pre-C++26 Environments</title>
+<style>
+  /* ── Reset & Base ────────────────────────────────────────── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --blue: #46A7DD;
+    --blue-dark: #2E8BC0;
+    --charcoal: #333E47;
+    --charcoal-light: #4A5662;
+    --orange: #FF8300;
+    --orange-light: #FF9F40;
+    --white: #ffffff;
+    --off-white: #F6F8FA;
+    --gray-100: #EEF1F4;
+    --gray-200: #D8DEE4;
+    --gray-600: #6B7A88;
+    --red-accent: #E05539;
+    --green-accent: #3EAF5C;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --shadow-sm: 0 1px 3px rgba(51,62,71,.08);
+    --shadow-md: 0 4px 16px rgba(51,62,71,.10);
+    --shadow-lg: 0 8px 32px rgba(51,62,71,.12);
+    --section-gap: 2.5rem;
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  html { scroll-behavior: smooth; font-size: 16px; }
+  body {
+    font-family: var(--font-sans);
+    color: var(--charcoal);
+    background: var(--off-white);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Sticky Header ───────────────────────────────────────── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(51,62,71,.97);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: .75rem 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(0,0,0,.15);
+  }
+  header img.logo { height: 52px; }
+  header nav { display: flex; gap: 1.5rem; }
+  header nav a {
+    color: rgba(255,255,255,.8);
+    text-decoration: none;
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: color .2s;
+  }
+  header nav a:hover { color: var(--orange); }
+
+  /* ── Hero ─────────────────────────────────────────────────── */
+  .hero {
+    background: linear-gradient(135deg, var(--charcoal) 0%, #1E272E 100%);
+    color: var(--white);
+    padding: 5rem 2rem 4rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 20% 50%, rgba(70,167,221,.15) 0%, transparent 50%),
+      radial-gradient(circle at 80% 30%, rgba(255,131,0,.1) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .hero-inner { max-width: 900px; margin: 0 auto; position: relative; }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(255,131,0,.15);
+    color: var(--orange);
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: .4rem 1rem;
+    border-radius: 100px;
+    border: 1px solid rgba(255,131,0,.3);
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 {
+    font-size: clamp(2rem, 4.5vw, 3.25rem);
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 1.25rem;
+    letter-spacing: -.02em;
+  }
+  .hero h1 span { color: var(--orange); }
+  .hero-meta {
+    font-size: 1.05rem;
+    color: rgba(255,255,255,.7);
+    font-weight: 500;
+  }
+  .hero-meta strong { color: var(--white); }
+
+  /* ── Layout ──────────────────────────────────────────────── */
+  .container {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 4rem;
+  }
+
+  /* Section navigation pills */
+  .section-nav {
+    display: flex; flex-wrap: wrap; gap: .5rem;
+    justify-content: center;
+    margin: -1.5rem auto 2.5rem;
+    position: relative; z-index: 10;
+    max-width: 900px;
+    padding: 0 1.5rem;
+  }
+  .section-nav a {
+    display: inline-flex; align-items: center; gap: .35rem;
+    background: var(--white);
+    color: var(--charcoal);
+    font-size: .8rem;
+    font-weight: 600;
+    padding: .5rem 1rem;
+    border-radius: 100px;
+    text-decoration: none;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--gray-200);
+    transition: all .2s;
+  }
+  .section-nav a:hover {
+    background: var(--blue);
+    color: var(--white);
+    border-color: var(--blue);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+  }
+  .section-nav .nav-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px;
+    background: var(--gray-100);
+    border-radius: 50%;
+    font-size: .7rem;
+    font-weight: 700;
+    color: var(--gray-600);
+    transition: all .2s;
+  }
+  .section-nav a:hover .nav-num {
+    background: rgba(255,255,255,.25);
+    color: var(--white);
+  }
+
+  /* ── Content Cards ───────────────────────────────────────── */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--gray-200);
+    padding: 2.25rem 2.5rem;
+    margin-bottom: var(--section-gap);
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--shadow-md); }
+
+  .card-label {
+    display: inline-block;
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: .75rem;
+  }
+
+  h2 {
+    font-size: 1.65rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    margin-bottom: 1.15rem;
+    color: var(--charcoal);
+    line-height: 1.25;
+  }
+
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 1.75rem 0 .75rem;
+    color: var(--charcoal);
+  }
+
+  p { margin-bottom: 1rem; color: var(--charcoal-light); }
+  p:last-child { margin-bottom: 0; }
+
+  em { font-style: italic; }
+  strong { font-weight: 700; color: var(--charcoal); }
+
+  /* ── Inline code ─────────────────────────────────────────── */
+  code:not(pre code) {
+    font-family: var(--font-mono);
+    font-size: .85em;
+    background: var(--gray-100);
+    color: var(--red-accent);
+    padding: .15em .4em;
+    border-radius: 4px;
+    word-break: break-word;
+  }
+
+  /* ── Code blocks ─────────────────────────────────────────── */
+  .code-block-wrapper {
+    position: relative;
+    margin: 1.25rem 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
+  }
+  .code-block-label {
+    background: var(--gray-100);
+    padding: .4rem 1rem;
+    font-family: var(--font-mono);
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    letter-spacing: .5px;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  pre {
+    background: #1B2128;
+    color: #D4DBE3;
+    padding: 1.25rem 1.5rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: .82rem;
+    line-height: 1.65;
+    -webkit-overflow-scrolling: touch;
+  }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+
+  /* Syntax colours */
+  .kw  { color: #C792EA; }
+  .tp  { color: #82AAFF; }
+  .fn  { color: #82AAFF; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6A737D; }
+  .pp  { color: #89DDFF; }
+  .ns  { color: #FFCB6B; }
+  .num { color: #F78C6C; }
+  .op  { color: #89DDFF; }
+
+  /* ── Callout / aside boxes ───────────────────────────────── */
+  .callout {
+    background: linear-gradient(135deg, rgba(70,167,221,.06), rgba(70,167,221,.03));
+    border-left: 4px solid var(--blue);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1.25rem 1.5rem;
+    margin: 1.5rem 0;
+  }
+  .callout h3 { margin-top: 0; color: var(--blue-dark); }
+
+  /* ── Lists ───────────────────────────────────────────────── */
+  ul, ol { margin: .75rem 0 1rem 1.25rem; color: var(--charcoal-light); }
+  li { margin-bottom: .5rem; }
+  li strong { color: var(--charcoal); }
+
+  /* ── Advantage / Drawback Tabs ───────────────────────────── */
+  .tab-container { margin-top: 1.25rem; }
+  .tab-buttons {
+    display: flex; gap: 0;
+    border-bottom: 2px solid var(--gray-200);
+    margin-bottom: 0;
+  }
+  .tab-btn {
+    padding: .65rem 1.5rem;
+    border: none;
+    background: none;
+    font-family: var(--font-sans);
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--gray-600);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all .2s;
+  }
+  .tab-btn:hover { color: var(--charcoal); }
+  .tab-btn.active-pro {
+    color: var(--green-accent);
+    border-bottom-color: var(--green-accent);
+  }
+  .tab-btn.active-con {
+    color: var(--red-accent);
+    border-bottom-color: var(--red-accent);
+  }
+  .tab-panel {
+    display: none;
+    padding: 1.25rem 0 0;
+    animation: fadeIn .25s ease;
+  }
+  .tab-panel.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .tab-panel.pro-panel ul { border-left: 3px solid var(--green-accent); padding-left: 1.25rem; margin-left: 0; }
+  .tab-panel.con-panel ul { border-left: 3px solid var(--red-accent); padding-left: 1.25rem; margin-left: 0; }
+
+  /* ── Collapsible details/summary ─────────────────────────── */
+  details {
+    margin: 1.25rem 0;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: box-shadow .2s;
+  }
+  details:hover { box-shadow: var(--shadow-sm); }
+  details[open] { box-shadow: var(--shadow-md); }
+
+  details summary {
+    padding: .85rem 1.25rem;
+    background: var(--gray-100);
+    cursor: pointer;
+    font-weight: 700;
+    font-size: .9rem;
+    color: var(--charcoal);
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    list-style: none;
+    user-select: none;
+    transition: background .2s;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-right: 2px solid var(--blue);
+    border-bottom: 2px solid var(--blue);
+    transform: rotate(-45deg);
+    transition: transform .2s;
+    flex-shrink: 0;
+  }
+  details[open] summary::before { transform: rotate(45deg); }
+  details summary:hover { background: var(--gray-200); }
+  details .details-body { padding: 1.25rem 1.5rem; }
+
+  /* code details specifically */
+  details.code-details summary {
+    background: linear-gradient(135deg, #1B2128, #232B34);
+    color: var(--blue);
+    font-family: var(--font-mono);
+    font-size: .8rem;
+  }
+  details.code-details summary::before {
+    border-color: var(--blue);
+  }
+  details.code-details .details-body { padding: 0; }
+  details.code-details .code-block-wrapper { margin: 0; border: none; border-radius: 0; }
+
+  /* callout details */
+  details.callout-details {
+    border-color: var(--blue);
+    border-left: 4px solid var(--blue);
+  }
+  details.callout-details summary {
+    background: linear-gradient(135deg, rgba(70,167,221,.08), rgba(70,167,221,.04));
+    color: var(--blue-dark);
+  }
+  details.callout-details summary::before { border-color: var(--blue-dark); }
+  details.callout-details .details-body {
+    background: linear-gradient(135deg, rgba(70,167,221,.04), rgba(70,167,221,.02));
+  }
+
+  /* ── Performance highlight ───────────────────────────────── */
+  .perf-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1.25rem 0;
+  }
+  .perf-stat {
+    text-align: center;
+    background: var(--gray-100);
+    border-radius: var(--radius);
+    padding: 1.25rem 1rem;
+  }
+  .perf-stat .num-highlight {
+    display: block;
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--blue);
+    line-height: 1.1;
+  }
+  .perf-stat .label {
+    display: block;
+    font-size: .8rem;
+    color: var(--gray-600);
+    margin-top: .35rem;
+  }
+
+  /* ── Key-point summary strips ────────────────────────────── */
+  .key-point {
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    padding: .85rem 1rem;
+    background: linear-gradient(135deg, rgba(70,167,221,.06), transparent);
+    border-radius: var(--radius);
+    margin-bottom: .75rem;
+    border: 1px solid rgba(70,167,221,.12);
+  }
+  .key-point .kp-icon {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    background: var(--blue);
+    color: var(--white);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem;
+    font-weight: 800;
+    margin-top: 2px;
+  }
+  .key-point p { margin: 0; font-size: .92rem; }
+
+  /* ── "Expand all" toggle ─────────────────────────────────── */
+  .expand-toggle {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: none;
+    border: 1px solid var(--gray-200);
+    border-radius: 100px;
+    padding: .35rem .9rem;
+    font-family: var(--font-sans);
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: all .2s;
+    float: right;
+    margin-top: -2.5rem;
+  }
+  .expand-toggle:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* ── Footer ──────────────────────────────────────────────── */
+  footer {
+    background: var(--charcoal);
+    color: rgba(255,255,255,.6);
+    text-align: center;
+    padding: 2.5rem 1.5rem;
+    font-size: .85rem;
+    line-height: 1.6;
+  }
+  footer strong { color: var(--white); }
+  footer img { height: 28px; margin-bottom: .75rem; opacity: .8; }
+
+  /* ── Responsive ──────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .hero { padding: 3.5rem 1.25rem 3rem; }
+    .card { padding: 1.5rem 1.25rem; }
+    pre { font-size: .75rem; padding: 1rem; }
+    header nav { gap: .75rem; }
+    header nav a { font-size: .7rem; letter-spacing: .5px; }
+    .expand-toggle { float: none; margin: 0 0 1rem; }
+    .tab-btn { padding: .5rem .75rem; font-size: .8rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ Header ═══ -->
+<header>
+  <img class="logo" src="swift 2.png" alt="Swift Navigation">
+  <nav>
+    <a href="#abstract">Abstract</a>
+    <a href="#motivation">Motivation</a>
+    <a href="#solution">Solution</a>
+    <a href="#discussion">Discussion</a>
+    <a href="#conclusion">Conclusion</a>
+  </nav>
+</header>
+
+<!-- ═══ Hero ═══ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">CppCon 2026 &middot; Poster Session</div>
+    <h1>Bridging the Safety Gap:<br><span>Hardening the STL</span> in Pre-C++26 Environments</h1>
+    <p class="hero-meta"><strong>Sebastian M&uuml;ller</strong> &mdash; Swift Navigation</p>
+  </div>
+</section>
+
+<!-- ═══ Section nav pills ═══ -->
+<nav class="section-nav">
+  <a href="#abstract"><span class="nav-num">1</span> Abstract</a>
+  <a href="#motivation"><span class="nav-num">2</span> Motivation</a>
+  <a href="#solution"><span class="nav-num">3</span> Solution</a>
+  <a href="#discussion"><span class="nav-num">4</span> Discussion</a>
+  <a href="#conclusion"><span class="nav-num">5</span> Conclusion</a>
+</nav>
+
+<div class="container">
+
+<!-- ═══ 1. Abstract ═══ -->
+<section id="abstract" class="card">
+  <span class="card-label">Section 1</span>
+  <h2>Abstract</h2>
+  <p>
+    This poster explores how the philosophy behind C++26 standard library hardening
+    can be practically backported to earlier standards. By providing thin,
+    carefully designed wrappers around standard library types, we can enforce
+    explicit runtime precondition checks at the application level, catching common
+    Undefined Behavior pitfalls during development and bridging the safety gap for
+    environments that cannot yet migrate to modern C++.
+  </p>
+</section>
+
+<!-- ═══ 2. Motivation ═══ -->
+<section id="motivation" class="card">
+  <span class="card-label">Section 2</span>
+  <h2>Motivation</h2>
+
+  <!-- Key points visible at a glance -->
+  <div class="key-point">
+    <div class="kp-icon">!</div>
+    <p>Safety-critical industries rely on pre-C++26 standards. C++17 is the <em>newest</em> popular standard in automotive &mdash; C++26 hardening tools remain inaccessible to legacy codebases.</p>
+  </div>
+
+  <div class="key-point">
+    <div class="kp-icon">?</div>
+    <p>The STL prioritizes performance over safety. <code>operator*</code> on an empty optional, wrong variant access, or out-of-bounds <code>operator[]</code> &mdash; all lead to silent UB.</p>
+  </div>
+
+  <details>
+    <summary>Full motivation &mdash; industry context &amp; the UB problem</summary>
+    <div class="details-body">
+      <p>
+        Many safety-critical industries heavily rely on pre-C++26 standards to power
+        their foundational software. In the automotive industry, for instance, C++17 is
+        currently considered the <em>newest</em> popular standard in widespread use, as the
+        adoption of new language standards typically lags behind by years, if not
+        decades, due to strict certification and tooling requirements. While the
+        upcoming C++26 standard introduces standard library hardening mechanisms that
+        would benefit these exact industries, these tools currently remain inaccessible
+        to legacy codebases.
+      </p>
+      <p>
+        Historically, the Standard Template Library (STL) has prioritized raw
+        performance over runtime safety checks, leaving developers to navigate a
+        minefield of Undefined Behavior (UB) pitfalls. Common vocabulary types like
+        <code>std::optional</code>, <code>std::variant</code>, and <code>std::span</code>&mdash;along with everyday containers
+        like <code>std::vector</code> and <code>std::string_view</code>&mdash;contain deliberate, unchecked
+        operations. Simple actions like using <code>operator*</code> on an empty optional,
+        accessing the wrong variant alternative, or an out-of-bounds access via
+        <code>operator[]</code> can lead to silent data corruption, security vulnerabilities, or
+        catastrophic crashes.
+      </p>
+    </div>
+  </details>
+
+  <details class="code-details">
+    <summary>Show UB example &mdash; dereferencing an empty optional</summary>
+    <div class="details-body">
+      <div class="code-block-wrapper">
+        <div class="code-block-label">C++ &mdash; Undefined Behavior example</div>
+        <pre><code><span class="pp">#include</span> <span class="str">&lt;iostream&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;string&gt;</span>
+<span class="cm">// Returns disengaged optional if user is not found.</span>
+<span class="tp">std::optional</span><span class="op">&lt;</span><span class="tp">int</span><span class="op">&gt;</span> <span class="fn">find_user_age</span>(<span class="kw">const</span> <span class="tp">std::string</span><span class="op">&amp;</span> name);
+
+<span class="tp">void</span> <span class="fn">greet</span>(<span class="kw">const</span> <span class="tp">std::string</span><span class="op">&amp;</span> name) {
+    <span class="kw">auto</span> age <span class="op">=</span> <span class="fn">find_user_age</span>(name);
+    <span class="cm">// BUG: developer forgot to check has_value().</span>
+    <span class="cm">// Compiles without warning — Undefined Behavior at runtime.</span>
+    <span class="tp">std::cout</span> <span class="op">&lt;&lt;</span> <span class="str">"Happy birthday #"</span> <span class="op">&lt;&lt;</span> <span class="op">*</span>age <span class="op">&lt;&lt;</span> <span class="str">", "</span> <span class="op">&lt;&lt;</span> name <span class="op">&lt;&lt;</span> <span class="str">"!\n"</span>;
+}</code></pre>
+      </div>
+      <div style="padding: 1rem 1.5rem;">
+        <p>
+          In pre-C++26 environments, this code compiles cleanly and may appear to work
+          during casual testing if the lookup happens to succeed. When it doesn't, <code>*age</code>
+          reads from an empty <code>std::optional</code> &mdash; invoking Undefined Behavior that can
+          manifest as garbage output, a crash, or worse: silent data corruption that
+          propagates undetected through the system.
+        </p>
+      </div>
+    </div>
+  </details>
+
+  <details class="callout-details">
+    <summary>What does "Hardened STL" actually mean in C++26?</summary>
+    <div class="details-body">
+      <p>
+        C++26 introduces the concept of <em>hardened preconditions</em> via <a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p3471r4.html" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:underline;text-underline-offset:2px;">P3471</a> ("Standard
+        Library Hardening"). This is not a new set of safe types or a parallel safe
+        API. Instead, it mandates that standard library implementations must check
+        certain function preconditions at runtime and terminate the program when they
+        are violated. For example, a C++26-conforming implementation of
+        <code>std::optional::operator*</code> must verify that the optional is engaged before
+        dereferencing, and abort if it is not. The key distinction is that this is an
+        <em>implementation-level</em> requirement: the standard specifies <em>what</em> must be
+        checked, and the vendor's standard library (libc++, libstdc++, MSVC STL) is
+        responsible for <em>how</em> those checks are enforced.
+      </p>
+      <p>
+        This means C++26 hardening cannot be adopted simply by bumping a compiler
+        flag&mdash;it requires a conforming standard library implementation (honorable mention:
+        some STL implementations offer this flag already, but this is not widely
+        available). For organizations locked to older toolchains, that conforming
+        library is simply not available. The wrapper approach presented here fills
+        exactly this gap: it applies the same philosophy of mandatory precondition
+        checks, but does so at the user level, independent of the underlying standard
+        library implementation.
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ═══ 3. Solution ═══ -->
+<section id="solution" class="card">
+  <span class="card-label">Section 3</span>
+  <h2>Solution: Hardened STL Wrappers</h2>
+
+  <div class="key-point">
+    <div class="kp-icon">1</div>
+    <p><strong>Aggregation, not inheritance</strong> &mdash; wrap the STL type to prevent implicit conversion back to the unsafe base class.</p>
+  </div>
+  <div class="key-point">
+    <div class="kp-icon">2</div>
+    <p><strong>Single type alias</strong> &mdash; <code>template &lt;typename T&gt; using optional = safe::optional&lt;T&gt;;</code> propagates hardening architecture-wide.</p>
+  </div>
+  <div class="key-point">
+    <div class="kp-icon">3</div>
+    <p><strong>Precondition checks</strong> &mdash; intercept UB-prone operations (<code>operator*</code>, <code>operator-&gt;</code>) and assert before forwarding.</p>
+  </div>
+
+  <details>
+    <summary>Full explanation &mdash; why aggregation over inheritance</summary>
+    <div class="details-body">
+      <p>
+        The fundamental principle of this approach is to create a drop-in replacement
+        wrapper class that aggregates the underlying STL type while exposing the exact
+        same interface. While this poster uses <code>optional</code> as its primary example, this
+        structural concept is universally applicable to any STL container or vocabulary
+        type fraught with UB pitfalls (such as <code>variant</code>, <code>span</code>, or <code>vector</code>).
+      </p>
+      <p>
+        A naive approach to hardening might involve inheriting directly from the STL
+        type (e.g., <code>class optional : public std::optional&lt;T&gt;</code>). However, this
+        introduces critical safety loopholes. Because STL types are not designed for
+        polymorphic inheritance, "overriding" accessors only shadows them. More
+        importantly, inheritance allows implicit conversion to the base class. If a
+        <code>safe::optional</code> is passed by reference to an older API expecting a
+        <code>std::optional&amp;</code>, the original unsafe methods are exposed and the safety checks
+        are bypassed entirely. If passed by value, object slicing occurs, completely
+        stripping away the hardened interface. Aggregation strictly prevents these
+        implicit conversions, ensuring the unsafe base interface remains encapsulated
+        and inaccessible.
+      </p>
+      <p>
+        To seamlessly integrate these wrappers into an existing codebase, developers
+        can employ a central type alias (e.g., <code>template &lt;typename T&gt; using optional =
+        safe::optional&lt;T&gt;;</code>). This powerful technique creates a single point of
+        control, allowing an entire architecture to switch between the standard
+        implementation and the hardened implementation instantly.
+      </p>
+      <p>
+        If backward compatibility to STL types is needed for interfacing with
+        third-party code, adding a <code>base()</code> function that exposes the aggregated
+        <code>std::optional</code> can be considered. Note that this also opens a backdoor to
+        intentionally bypass the safety measures implemented in the wrapper class,
+        so this should be done with great care.
+      </p>
+      <p>
+        The wrapper works by intercepting calls to potentially dangerous operations.
+        For instance, in the case of <code>optional</code>, using <code>operator*</code> or <code>operator-&gt;</code> on
+        an empty object traditionally results in Undefined Behavior. Our wrapper
+        intercepts these calls and injects a precondition check prior to forwarding the
+        operation to the aggregated STL object. Instead of silent corruption, the
+        program terminates, enforcing strict structural invariants.
+      </p>
+    </div>
+  </details>
+
+  <details class="code-details">
+    <summary>Show full implementation &mdash; safe::optional (safe_optional.hpp)</summary>
+    <div class="details-body">
+      <div class="code-block-wrapper">
+        <div class="code-block-label">safe_optional.hpp</div>
+        <pre><code><span class="pp">#ifndef SAFE_OPTIONAL_HPP</span>
+<span class="pp">#define SAFE_OPTIONAL_HPP</span>
+
+<span class="pp">#include</span> <span class="str">&lt;cassert&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;optional&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;utility&gt;</span>
+
+<span class="kw">namespace</span> <span class="ns">safe</span> {
+
+<span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">T</span><span class="op">&gt;</span>
+<span class="kw">class</span> <span class="ns">optional</span> {
+<span class="kw">public</span>:
+    <span class="kw">constexpr</span> <span class="fn">optional</span>() <span class="kw">noexcept</span> <span class="op">=</span> <span class="kw">default</span>;
+    <span class="kw">constexpr</span> <span class="fn">optional</span>(<span class="tp">std::nullopt_t</span>) <span class="kw">noexcept</span> : m_base{<span class="tp">std::nullopt</span>} {}
+    <span class="kw">constexpr</span> <span class="fn">optional</span>(<span class="kw">const</span> <span class="tp">T</span><span class="op">&amp;</span> value) : m_base{value} {}
+    <span class="kw">constexpr</span> <span class="fn">optional</span>(<span class="tp">T</span><span class="op">&amp;&amp;</span> value) : m_base{std::move(value)} {}
+
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span><span class="op">...</span> <span class="tp">Args</span><span class="op">&gt;</span>
+    <span class="kw">constexpr explicit</span> <span class="fn">optional</span>(<span class="tp">std::in_place_t</span>, <span class="tp">Args</span><span class="op">&amp;&amp;...</span> args)
+        : m_base{<span class="tp">std::in_place</span>, std::forward<span class="op">&lt;</span><span class="tp">Args</span><span class="op">&gt;</span>(args)...} {}
+
+    <span class="cm">// UB-prone accessors — guarded with precondition check</span>
+    <span class="kw">constexpr</span> <span class="tp">T</span><span class="op">&amp;</span> <span class="kw">operator</span><span class="op">*</span>() <span class="op">&amp;</span> <span class="kw">noexcept</span> {
+        <span class="fn">assert</span>(has_value() <span class="op">&amp;&amp;</span> <span class="str">"UB prevented: dereferencing empty safe::optional"</span>);
+        <span class="kw">return</span> <span class="op">*</span>m_base;
+    }
+
+    <span class="kw">constexpr</span> <span class="kw">const</span> <span class="tp">T</span><span class="op">&amp;</span> <span class="kw">operator</span><span class="op">*</span>() <span class="kw">const</span><span class="op">&amp;</span> <span class="kw">noexcept</span> {
+        <span class="fn">assert</span>(has_value() <span class="op">&amp;&amp;</span> <span class="str">"UB prevented: dereferencing empty safe::optional"</span>);
+        <span class="kw">return</span> <span class="op">*</span>m_base;
+    }
+
+    <span class="kw">constexpr</span> <span class="tp">T</span><span class="op">&amp;&amp;</span> <span class="kw">operator</span><span class="op">*</span>() <span class="op">&amp;&amp;</span> <span class="kw">noexcept</span> {
+        <span class="fn">assert</span>(has_value() <span class="op">&amp;&amp;</span> <span class="str">"UB prevented: dereferencing empty safe::optional"</span>);
+        <span class="kw">return</span> std::move(<span class="op">*</span>m_base);
+    }
+
+    <span class="kw">constexpr</span> <span class="kw">const</span> <span class="tp">T</span><span class="op">&amp;&amp;</span> <span class="kw">operator</span><span class="op">*</span>() <span class="kw">const</span><span class="op">&amp;&amp;</span> <span class="kw">noexcept</span> {
+        <span class="fn">assert</span>(has_value() <span class="op">&amp;&amp;</span> <span class="str">"UB prevented: dereferencing empty safe::optional"</span>);
+        <span class="kw">return</span> std::move(<span class="op">*</span>m_base);
+    }
+
+    <span class="kw">constexpr</span> <span class="tp">T</span><span class="op">*</span> <span class="kw">operator</span><span class="op">-&gt;</span>() <span class="kw">noexcept</span> {
+        <span class="fn">assert</span>(has_value() <span class="op">&amp;&amp;</span> <span class="str">"UB prevented: member access on empty safe::optional"</span>);
+        <span class="kw">return</span> m_base.<span class="kw">operator</span><span class="op">-&gt;</span>();
+    }
+
+    <span class="kw">constexpr</span> <span class="kw">const</span> <span class="tp">T</span><span class="op">*</span> <span class="kw">operator</span><span class="op">-&gt;</span>() <span class="kw">const noexcept</span> {
+        <span class="fn">assert</span>(has_value() <span class="op">&amp;&amp;</span> <span class="str">"UB prevented: member access on empty safe::optional"</span>);
+        <span class="kw">return</span> m_base.<span class="kw">operator</span><span class="op">-&gt;</span>();
+    }
+
+    <span class="cm">// Safe forwards — no UB possible, pure delegation</span>
+    <span class="kw">constexpr</span> <span class="tp">bool</span> <span class="fn">has_value</span>() <span class="kw">const noexcept</span> { <span class="kw">return</span> m_base.has_value(); }
+    <span class="kw">constexpr explicit operator</span> <span class="tp">bool</span>() <span class="kw">const noexcept</span> { <span class="kw">return</span> m_base.has_value(); }
+
+    <span class="kw">constexpr</span> <span class="tp">T</span><span class="op">&amp;</span> <span class="fn">value</span>() <span class="op">&amp;</span> { <span class="kw">return</span> m_base.value(); }
+    <span class="kw">constexpr</span> <span class="kw">const</span> <span class="tp">T</span><span class="op">&amp;</span> <span class="fn">value</span>() <span class="kw">const</span><span class="op">&amp;</span> { <span class="kw">return</span> m_base.value(); }
+    <span class="kw">constexpr</span> <span class="tp">T</span><span class="op">&amp;&amp;</span> <span class="fn">value</span>() <span class="op">&amp;&amp;</span> { <span class="kw">return</span> std::move(m_base).value(); }
+    <span class="kw">constexpr</span> <span class="kw">const</span> <span class="tp">T</span><span class="op">&amp;&amp;</span> <span class="fn">value</span>() <span class="kw">const</span><span class="op">&amp;&amp;</span> { <span class="kw">return</span> std::move(m_base).value(); }
+
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">constexpr</span> <span class="tp">T</span> <span class="fn">value_or</span>(<span class="tp">U</span><span class="op">&amp;&amp;</span> fallback) <span class="kw">const</span><span class="op">&amp;</span> {
+        <span class="kw">return</span> m_base.value_or(std::forward<span class="op">&lt;</span><span class="tp">U</span><span class="op">&gt;</span>(fallback));
+    }
+
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">constexpr</span> <span class="tp">T</span> <span class="fn">value_or</span>(<span class="tp">U</span><span class="op">&amp;&amp;</span> fallback) <span class="op">&amp;&amp;</span> {
+        <span class="kw">return</span> std::move(m_base).value_or(std::forward<span class="op">&lt;</span><span class="tp">U</span><span class="op">&gt;</span>(fallback));
+    }
+
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span><span class="op">...</span> <span class="tp">Args</span><span class="op">&gt;</span>
+    <span class="tp">T</span><span class="op">&amp;</span> <span class="fn">emplace</span>(<span class="tp">Args</span><span class="op">&amp;&amp;...</span> args) {
+        <span class="kw">return</span> m_base.emplace(std::forward<span class="op">&lt;</span><span class="tp">Args</span><span class="op">&gt;</span>(args)...);
+    }
+
+    <span class="tp">void</span> <span class="fn">reset</span>() <span class="kw">noexcept</span> { m_base.reset(); }
+
+    <span class="tp">void</span> <span class="fn">swap</span>(<span class="ns">optional</span><span class="op">&amp;</span> other) <span class="kw">noexcept</span>(<span class="kw">noexcept</span>(m_base.swap(other.m_base))) {
+        m_base.swap(other.m_base);
+    }
+
+    <span class="cm">// ONLY necessary when interfacing with third party code</span>
+    <span class="tp">std::optional</span><span class="op">&lt;</span><span class="tp">T</span><span class="op">&gt;&amp;</span> <span class="fn">base</span>() <span class="kw">noexcept</span> {
+        <span class="kw">return</span> m_base;
+    }
+    <span class="kw">const</span> <span class="tp">std::optional</span><span class="op">&lt;</span><span class="tp">T</span><span class="op">&gt;&amp;</span> <span class="fn">base</span>() <span class="kw">const noexcept</span> {
+        <span class="kw">return</span> m_base;
+    }
+
+    <span class="cm">// Comparisons — optional-to-optional, pure delegation</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">==</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> a, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> b) { <span class="kw">return</span> a.m_base <span class="op">==</span> b.m_base; }
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">!=</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> a, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> b) { <span class="kw">return</span> a.m_base <span class="op">!=</span> b.m_base; }
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&lt;</span> (<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> a, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> b) { <span class="kw">return</span> a.m_base <span class="op">&lt;</span>  b.m_base; }
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&lt;=</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> a, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> b) { <span class="kw">return</span> a.m_base <span class="op">&lt;=</span> b.m_base; }
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&gt;</span> (<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> a, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> b) { <span class="kw">return</span> a.m_base <span class="op">&gt;</span>  b.m_base; }
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&gt;=</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> a, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> b) { <span class="kw">return</span> a.m_base <span class="op">&gt;=</span> b.m_base; }
+
+    <span class="cm">// Comparisons — optional-to-nullopt</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">==</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o, <span class="tp">std::nullopt_t</span>) <span class="kw">noexcept</span> { <span class="kw">return</span> <span class="op">!</span>o.has_value(); }
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">==</span>(<span class="tp">std::nullopt_t</span>, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o) <span class="kw">noexcept</span> { <span class="kw">return</span> <span class="op">!</span>o.has_value(); }
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">!=</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o, <span class="tp">std::nullopt_t</span>) <span class="kw">noexcept</span> { <span class="kw">return</span>  o.has_value(); }
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">!=</span>(<span class="tp">std::nullopt_t</span>, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o) <span class="kw">noexcept</span> { <span class="kw">return</span>  o.has_value(); }
+
+    <span class="cm">// Comparisons — optional-to-value</span>
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">==</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o, <span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v) { <span class="kw">return</span> o.m_base <span class="op">==</span> v; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">==</span>(<span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o) { <span class="kw">return</span> v <span class="op">==</span> o.m_base; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">!=</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o, <span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v) { <span class="kw">return</span> o.m_base <span class="op">!=</span> v; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">!=</span>(<span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o) { <span class="kw">return</span> v <span class="op">!=</span> o.m_base; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&lt;</span> (<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o, <span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v) { <span class="kw">return</span> o.m_base <span class="op">&lt;</span>  v; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&lt;</span> (<span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o) { <span class="kw">return</span> v <span class="op">&lt;</span>  o.m_base; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&lt;=</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o, <span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v) { <span class="kw">return</span> o.m_base <span class="op">&lt;=</span> v; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&lt;=</span>(<span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o) { <span class="kw">return</span> v <span class="op">&lt;=</span> o.m_base; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&gt;</span> (<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o, <span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v) { <span class="kw">return</span> o.m_base <span class="op">&gt;</span>  v; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&gt;</span> (<span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o) { <span class="kw">return</span> v <span class="op">&gt;</span>  o.m_base; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&gt;=</span>(<span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o, <span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v) { <span class="kw">return</span> o.m_base <span class="op">&gt;=</span> v; }
+    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">typename</span> <span class="tp">U</span><span class="op">&gt;</span>
+    <span class="kw">friend constexpr</span> <span class="tp">bool</span> <span class="kw">operator</span><span class="op">&gt;=</span>(<span class="kw">const</span> <span class="tp">U</span><span class="op">&amp;</span> v, <span class="kw">const</span> <span class="ns">optional</span><span class="op">&amp;</span> o) { <span class="kw">return</span> v <span class="op">&gt;=</span> o.m_base; }
+
+<span class="kw">private</span>:
+    <span class="tp">std::optional</span><span class="op">&lt;</span><span class="tp">T</span><span class="op">&gt;</span> m_base;
+};
+
+} <span class="cm">// namespace safe</span>
+
+<span class="pp">#endif // SAFE_OPTIONAL_HPP</span></code></pre>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ═══ 4. Discussion ═══ -->
+<section id="discussion" class="card">
+  <span class="card-label">Section 4</span>
+  <h2>Discussion</h2>
+
+  <!-- Tab bar for Advantages / Drawbacks -->
+  <div class="tab-container">
+    <div class="tab-buttons">
+      <button class="tab-btn active-pro" data-tab="tab-pro" data-active="active-pro">Advantages</button>
+      <button class="tab-btn" data-tab="tab-con" data-active="active-con">Drawbacks</button>
+    </div>
+
+    <div id="tab-pro" class="tab-panel pro-panel active">
+      <ul>
+        <li><strong>Immediate applicability:</strong> The wrapper approach works with any C++17 (or
+          later) toolchain today. Organizations do not need to wait for compiler vendors
+          to ship C++26-conforming standard libraries or for their internal tooling
+          certification processes to catch up.</li>
+        <li><strong>Architecture-wide adoption via type aliases:</strong> A single <code>using</code> declaration
+          (e.g., <code>template &lt;typename T&gt; using optional = safe::optional&lt;T&gt;;</code>) can
+          propagate hardening across an entire codebase without touching call sites,
+          making rollout minimally invasive and easily reversible.</li>
+        <li><strong>No external dependencies:</strong> Unlike existing hardened alternatives such as
+          libc++'s <code>_LIBCPP_HARDENING_MODE</code>, Abseil's vocabulary types, or Microsoft's
+          GSL, this approach is vendor-neutral, requires no third-party libraries, and
+          works with any conforming C++17 toolchain.</li>
+        <li><strong>Smooth migration path to C++26:</strong> Because the hardened wrappers mirror the
+          standard interface and enforce the same preconditions that C++26 mandates,
+          migrating to a conforming standard library later requires little more than
+          updating the alias. Developers are already accustomed to the fail-fast
+          behavior, reducing surprise and friction.</li>
+      </ul>
+    </div>
+
+    <div id="tab-con" class="tab-panel con-panel">
+      <ul>
+        <li><strong>Scope of coverage:</strong> The wrappers guard explicit accessor calls
+          (<code>operator*</code>, <code>operator-&gt;</code>, <code>operator[]</code>). They do not protect against
+          broader categories of UB such as iterator invalidation, dangling references
+          obtained via <code>value()</code>, use-after-move, or data races. These require separate
+          mitigation strategies (static analysis, sanitizers, careful API design).</li>
+        <li><strong>Implementation verbosity:</strong> Because aggregation strictly prevents implicit
+          inheritance, the full public API of the underlying STL type must be
+          explicitly re-implemented in each wrapper. For a type like <code>std::optional</code>,
+          this includes all ref-qualified overloads of <code>operator*</code> and <code>value()</code>, the
+          complete set of comparison operators, converting constructors, monadic
+          operations (C++23), <code>std::hash</code> specializations, and deduction guides.
+          Getting every signature exactly right is laborious and error-prone; missing
+          or subtly incorrect overloads can break template code that relies on exact
+          type traits or overload resolution. This cost is mitigated by the fact that
+          the vast majority of these functions are simple <code>constexpr</code> forwards,
+          leaving limited room for <em>semantic</em> errors.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Runtime</h3>
+
+  <div class="perf-stats">
+    <div class="perf-stat">
+      <span class="num-highlight">0.25 ns</span>
+      <span class="label">with safety checks disabled</span>
+    </div>
+    <div class="perf-stat">
+      <span class="num-highlight">0.38 ns (+0.13 ns)</span>
+      <span class="label">with safety checks enabled</span>
+    </div>
+  </div>
+
+  <details>
+    <summary>Full performance analysis</summary>
+    <div class="details-body">
+      <p>
+        The implementation above uses <code>assert</code> as the precondition check mechanism. This
+        is a deliberate, illustrative choice &mdash; not a prescription. <code>assert</code> is disabled
+        when <code>NDEBUG</code> is defined (i.e., in typical release builds), which means these
+        checks are active <em>during development and testing</em>. This is consistent with the
+        intended usage model: when combined with extensive automated testing in debug
+        mode, this fail-fast strategy surfaces hidden logical errors early in the
+        development lifecycle, catching violations that would otherwise deploy as
+        Undefined Behavior. In a release build, the performance is identical to the
+        non-hardened STL implementation.
+      </p>
+      <p>
+        Note this approach differs from the hardened STL approach, which involves
+        calling the abort handler independent of <code>NDEBUG</code>. Both approaches are viable,
+        but the latter will lead to a runtime cost also in production code.
+      </p>
+      <p>
+        Benchmarks for this proof of concept show that the performance with disabled
+        asserts is identical to the STL implementation. In an optimized build with
+        asserts enabled, the safety guarded functions show an average increase of 0.13&nbsp;ns
+        absolute and 50% relative runtime (environment: MacOS, LLVM Clang 21, Google
+        Benchmarks, <code>O2</code> optimization flag).
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ═══ 5. Conclusion ═══ -->
+<section id="conclusion" class="card">
+  <span class="card-label">Section 5</span>
+  <h2>Conclusion</h2>
+
+  <div class="key-point">
+    <div class="kp-icon" style="background:var(--green-accent);">&#10003;</div>
+    <p>Zero release-build overhead, architecture-wide rollout through a single alias, and a natural migration path to C++26.</p>
+  </div>
+
+  <details>
+    <summary>Full conclusion</summary>
+    <div class="details-body">
+      <p>
+        Improving runtime safety and catching Undefined Behavior in legacy C++
+        codebases does not have to wait for C++26. By utilizing a simple type alias
+        alongside aggregated wrapper classes, organizations can deploy a drop-in
+        replacement that immediately hardens their standard library usage across an
+        entire architecture. The advantages are compelling: zero release-build overhead,
+        architecture-wide rollout through a single alias, and a natural migration path
+        to C++26 once the toolchain permits. Combined with thorough automated testing
+        in debug mode, this fail-fast strategy yields significant and immediate ROI by
+        surfacing silent data corruption and avoiding catastrophic runtime
+        vulnerabilities before they reach production.
+      </p>
+      <p>
+        These benefits do not come for free. The aggregation-based design demands
+        verbose re-implementation of every public API surface, and debug-only checks
+        leave a gap for bugs that only surface under production conditions. Third-party
+        boundaries may require explicit escape hatches that temporarily re-expose
+        unchecked interfaces. Teams should weigh these trade-offs against their
+        project's risk profile and complement the wrappers with static analysis,
+        sanitizers, and thorough test coverage to address the categories of UB that
+        precondition checks alone cannot catch.
+      </p>
+      <p>
+        Ultimately, adopting hardened wrappers secures pre-C++26 environments today and
+        trains developers to expect safe behavior, paving the way for a smooth
+        transition to C++26 standard library hardening once the toolchain permits.
+      </p>
+    </div>
+  </details>
+</section>
+
+</div><!-- .container -->
+
+<!-- ═══ Footer ═══ -->
+<footer>
+  <img src="swift 2.png" alt="Swift Navigation"><br>
+  <strong>Sebastian M&uuml;ller</strong> &mdash; Swift Navigation<br>
+  CppCon 2026 &middot; Poster Session<br><br>
+  <a href="https://www.swiftnav.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;color:var(--white);text-decoration:none;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:100px;padding:.45rem 1.1rem;margin:.25rem .35rem;font-weight:600;font-size:.9rem;transition:all .2s;" onmouseover="this.style.background='#FF8300';this.style.borderColor='#FF8300'" onmouseout="this.style.background='rgba(255,255,255,.1)';this.style.borderColor='rgba(255,255,255,.2)'">🌐 swiftnav.com</a>
+  <a href="https://www.linkedin.com/in/sbmueller/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;color:var(--white);text-decoration:none;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:100px;padding:.45rem 1.1rem;margin:.25rem .35rem;font-weight:600;font-size:.9rem;transition:all .2s;" onmouseover="this.style.background='#FF8300';this.style.borderColor='#FF8300'" onmouseout="this.style.background='rgba(255,255,255,.1)';this.style.borderColor='rgba(255,255,255,.2)'"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg> LinkedIn</a>
+  <span style="display:inline-flex;align-items:center;gap:.4rem;color:var(--white);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:100px;padding:.45rem 1.1rem;margin:.25rem .35rem;font-weight:600;font-size:.9rem;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg> senpo4581</span>
+</footer>
+
+<!-- ═══ JS: Tabs ═══ -->
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const container = btn.closest('.tab-container');
+    // Deactivate all
+    container.querySelectorAll('.tab-btn').forEach(b => {
+      b.className = 'tab-btn';
+    });
+    container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    // Activate clicked
+    btn.classList.add(btn.dataset.active);
+    container.querySelector('#' + btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+
+</body>
+</html>
